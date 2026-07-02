@@ -283,6 +283,7 @@ export default function App() {
       toast.success(nextStatus === "done" ? "Task resolved successfully" : "Task reopened");
     } catch (e) {
       console.error(e);
+      toast.error("Failed to update task status");
     }
   };
 
@@ -295,6 +296,7 @@ export default function App() {
       toast.success(`Reassigned: ${member.name}`);
     } catch (e) {
       console.error(e);
+      toast.error("Failed to reassign task");
     }
   };
 
@@ -305,6 +307,7 @@ export default function App() {
       toast.success(`Priority set to: ${priority}`);
     } catch (e) {
       console.error(e);
+      toast.error("Failed to update task priority");
     }
   };
 
@@ -315,6 +318,7 @@ export default function App() {
       toast.success("Record purged");
     } catch (e) {
       console.error(e);
+      toast.error("Failed to delete task");
     }
   };
 
@@ -325,6 +329,7 @@ export default function App() {
       toast.success("Decision purged");
     } catch (e) {
       console.error(e);
+      toast.error("Failed to delete decision");
     }
   };
 
@@ -335,6 +340,7 @@ export default function App() {
       toast.success("Blocker resolved");
     } catch (e) {
       console.error(e);
+      toast.error("Failed to resolve blocker");
     }
   };
 
@@ -417,7 +423,7 @@ export default function App() {
         {/* LEFT COLUMN: Voice Input, Presets & Live Transcription Preview */}
         <div className="col-span-1 md:col-span-6 flex flex-col gap-6">
           
-          <Card className="bg-[#0b0f19]/80 border-[#1f2937] rounded-none shadow-none font-mono flex-1 flex flex-col justify-between">
+          <Card className="bg-[#0b0f19]/80 border-[#1f2937] rounded-none shadow-none font-mono flex-1 flex flex-col justify-between animate-border-glow">
             <CardContent className="space-y-4 p-4 flex-1">
               
               {/* Live transcript buffer view with editor line numbers */}
@@ -425,9 +431,16 @@ export default function App() {
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[9px] text-[#4b5563]">// BUFFER_STREAM.log</span>
                   {isRecording && (
-                    <span className="text-[9px] text-[#ef4444] animate-pulse">
-                      [RECORDING LEVEL: ||||||||||||||..... 58dB]
-                    </span>
+                    <div className="flex items-center gap-1.5 h-3">
+                      <span className="text-[9px] text-[#ef4444] animate-pulse-soft font-bold">[RECORDING_STREAM: ACTIVE]</span>
+                      <div className="flex gap-0.5 items-end h-2.5">
+                        <span className="w-0.5 bg-[#ef4444] animate-pulse" style={{ height: '30%', animationDuration: '0.4s' }} />
+                        <span className="w-0.5 bg-[#ef4444] animate-pulse" style={{ height: '70%', animationDuration: '0.6s' }} />
+                        <span className="w-0.5 bg-[#ef4444] animate-pulse" style={{ height: '100%', animationDuration: '0.3s' }} />
+                        <span className="w-0.5 bg-[#ef4444] animate-pulse" style={{ height: '40%', animationDuration: '0.5s' }} />
+                        <span className="w-0.5 bg-[#ef4444] animate-pulse" style={{ height: '80%', animationDuration: '0.7s' }} />
+                      </div>
+                    </div>
                   )}
                 </div>
                 
@@ -484,7 +497,7 @@ export default function App() {
                   ) : (
                     <>
                       {suggestions.tasks.map((t, idx) => (
-                        <div key={`live-task-${idx}`} className="p-1.5 border border-[#1f2937] bg-[#0b0f19] flex justify-between items-center">
+                        <div key={`live-task-${idx}`} className="p-1.5 border border-[#1f2937] bg-[#0b0f19] flex justify-between items-center animate-slide-up">
                           <span className="text-[#cbd5e1] truncate flex-1 pr-2">
                             [TASK] "{t.title}" &rarr; {t.assigneeName.toLowerCase()}
                           </span>
@@ -492,12 +505,12 @@ export default function App() {
                         </div>
                       ))}
                       {suggestions.decisions.map((d, idx) => (
-                        <div key={`live-dec-${idx}`} className="p-1.5 border border-[#10b981]/20 bg-[#10b981]/5 text-[#10b981]">
+                        <div key={`live-dec-${idx}`} className="p-1.5 border border-[#10b981]/20 bg-[#10b981]/5 text-[#10b981] animate-slide-up">
                           [DECISION] "{d.title}"
                         </div>
                       ))}
                       {suggestions.blockers.map((b, idx) => (
-                        <div key={`live-block-${idx}`} className="p-1.5 border border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444]">
+                        <div key={`live-block-${idx}`} className="p-1.5 border border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] animate-slide-up">
                           [BLOCKER] "{b.title}"
                         </div>
                       ))}
@@ -508,7 +521,7 @@ export default function App() {
                 {suggestions && (suggestions.tasks.length > 0 || suggestions.decisions.length > 0 || suggestions.blockers.length > 0) && (
                   <Button
                     onClick={commitSuggestions}
-                    className="w-full bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold h-7 text-[10px] rounded-none shadow-none uppercase"
+                    className="w-full bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold h-7 text-[10px] rounded-none shadow-none uppercase btn-terminal-hover"
                   >
                     [COMMIT SUGGESTIONS TO DB]
                   </Button>
@@ -523,7 +536,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={toggleRecording}
-                  className={`size-10 border flex items-center justify-center transition-all ${
+                  className={`size-10 border flex items-center justify-center transition-all btn-terminal-hover ${
                     isRecording 
                       ? "bg-[#ef4444] border-[#ef4444] text-black hover:bg-[#f87171]" 
                       : "bg-[#030712] border-[#06b6d4]/40 text-[#06b6d4] hover:bg-[#06b6d4]/10"
@@ -552,7 +565,7 @@ export default function App() {
         {/* RIGHT COLUMN: Active workspace board grouped by team member name */}
         <div className="col-span-1 md:col-span-6 flex flex-col gap-6">
           
-          <Card className="bg-[#0b0f19]/80 border-[#1f2937] rounded-none shadow-none font-mono flex-1 flex flex-col">
+          <Card className="bg-[#0b0f19]/80 border-[#1f2937] rounded-none shadow-none font-mono flex-1 flex flex-col animate-border-glow">
             <CardContent className="p-4 flex-1 overflow-y-auto space-y-5 max-h-[680px] scrollbar-thin scrollbar-thumb-slate-800">
               <Tabs defaultValue="tasks" className="w-full">
                 
@@ -603,8 +616,8 @@ export default function App() {
                             memberTasks.map((task) => (
                               <div 
                                 key={task.id} 
-                                className={`p-2.5 border border-[#1f2937] bg-[#030712] flex items-start justify-between gap-2.5 transition-all ${
-                                  task.status === "done" ? "opacity-45" : "hover:border-[#374151]"
+                                className={`p-2.5 border border-[#1f2937] bg-[#030712] flex items-start justify-between gap-2.5 task-card-item animate-slide-up ${
+                                  task.status === "done" ? "opacity-45" : ""
                                 }`}
                               >
                                 <div className="flex items-start gap-2 flex-1 min-w-0">

@@ -3,8 +3,15 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { extractFromTranscriptLocal } from "@/lib/localExtractor";
 
 export async function POST(request: NextRequest) {
+  let transcript = "";
+  let teamMembers = [];
+  let currentUser = null;
+
   try {
-    const { transcript, teamMembers, currentUser } = await request.json();
+    const body = await request.json();
+    transcript = body.transcript || "";
+    teamMembers = body.teamMembers || [];
+    currentUser = body.currentUser || null;
 
     if (!transcript || typeof transcript !== "string") {
       return Response.json(
@@ -118,7 +125,6 @@ You MUST return a JSON object with this exact schema (no markdown, no explanatio
   } catch (error) {
     console.error("Gemini API error, falling back to local extractor:", error);
     try {
-      const { transcript, teamMembers, currentUser } = await request.json();
       const localResult = extractFromTranscriptLocal(transcript, teamMembers, currentUser);
       return Response.json(localResult);
     } catch (fallbackError) {

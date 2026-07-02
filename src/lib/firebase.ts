@@ -192,16 +192,9 @@ export async function setCurrentUser(user: TeamMember): Promise<void> {
 // 3. Tasks
 export async function getTasks(): Promise<Task[]> {
   if (isFirebaseConnected && db) {
-    try {
-      const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
-    } catch (e) {
-      console.warn("Firestore error getting tasks, falling back to localStorage:", e);
-      return MOCK_DB.getTasks().sort((a, b) => 
-        new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-      );
-    }
+    const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
   }
   return MOCK_DB.getTasks().sort((a, b) => 
     new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
@@ -216,15 +209,11 @@ export async function createTask(task: Omit<Task, 'id' | 'createdAt'>): Promise<
   };
 
   if (isFirebaseConnected && db) {
-    try {
-      const docRef = await addDoc(collection(db, "tasks"), {
-        ...newTask,
-        createdAt: newTask.createdAt
-      });
-      return { ...newTask, id: docRef.id };
-    } catch (e) {
-      console.warn("Firestore error creating task, falling back to localStorage:", e);
-    }
+    const docRef = await addDoc(collection(db, "tasks"), {
+      ...newTask,
+      createdAt: newTask.createdAt
+    });
+    return { ...newTask, id: docRef.id };
   }
 
   const tasks = MOCK_DB.getTasks();
@@ -235,13 +224,9 @@ export async function createTask(task: Omit<Task, 'id' | 'createdAt'>): Promise<
 
 export async function updateTask(id: string, updates: Partial<Task>): Promise<void> {
   if (isFirebaseConnected && db) {
-    try {
-      const docRef = doc(db, "tasks", id);
-      await updateDoc(docRef, updates);
-      return;
-    } catch (e) {
-      console.warn("Firestore error updating task, falling back to localStorage:", e);
-    }
+    const docRef = doc(db, "tasks", id);
+    await updateDoc(docRef, updates);
+    return;
   }
 
   const tasks = MOCK_DB.getTasks();
@@ -254,12 +239,8 @@ export async function updateTask(id: string, updates: Partial<Task>): Promise<vo
 
 export async function deleteTask(id: string): Promise<void> {
   if (isFirebaseConnected && db) {
-    try {
-      await deleteDoc(doc(db, "tasks", id));
-      return;
-    } catch (e) {
-      console.warn("Firestore error deleting task, falling back to localStorage:", e);
-    }
+    await deleteDoc(doc(db, "tasks", id));
+    return;
   }
 
   const tasks = MOCK_DB.getTasks();
@@ -270,16 +251,9 @@ export async function deleteTask(id: string): Promise<void> {
 // 4. Decisions
 export async function getDecisions(): Promise<Decision[]> {
   if (isFirebaseConnected && db) {
-    try {
-      const q = query(collection(db, "decisions"), orderBy("createdAt", "desc"));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ id: d.id, ...d.data() } as Decision));
-    } catch (e) {
-      console.warn("Firestore error getting decisions, falling back to localStorage:", e);
-      return MOCK_DB.getDecisions().sort((a, b) => 
-        new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-      );
-    }
+    const q = query(collection(db, "decisions"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Decision));
   }
   return MOCK_DB.getDecisions().sort((a, b) => 
     new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
@@ -294,15 +268,11 @@ export async function createDecision(decision: Omit<Decision, 'id' | 'createdAt'
   };
 
   if (isFirebaseConnected && db) {
-    try {
-      const docRef = await addDoc(collection(db, "decisions"), {
-        ...newDecision,
-        createdAt: newDecision.createdAt
-      });
-      return { ...newDecision, id: docRef.id };
-    } catch (e) {
-      console.warn("Firestore error creating decision, falling back to localStorage:", e);
-    }
+    const docRef = await addDoc(collection(db, "decisions"), {
+      ...newDecision,
+      createdAt: newDecision.createdAt
+    });
+    return { ...newDecision, id: docRef.id };
   }
 
   const decisions = MOCK_DB.getDecisions();
@@ -313,12 +283,8 @@ export async function createDecision(decision: Omit<Decision, 'id' | 'createdAt'
 
 export async function deleteDecision(id: string): Promise<void> {
   if (isFirebaseConnected && db) {
-    try {
-      await deleteDoc(doc(db, "decisions", id));
-      return;
-    } catch (e) {
-      console.warn("Firestore error deleting decision, falling back to localStorage:", e);
-    }
+    await deleteDoc(doc(db, "decisions", id));
+    return;
   }
 
   const decisions = MOCK_DB.getDecisions();
@@ -329,16 +295,9 @@ export async function deleteDecision(id: string): Promise<void> {
 // 5. Blockers
 export async function getBlockers(): Promise<Blocker[]> {
   if (isFirebaseConnected && db) {
-    try {
-      const q = query(collection(db, "blockers"), orderBy("createdAt", "desc"));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ id: d.id, ...d.data() } as Blocker));
-    } catch (e) {
-      console.warn("Firestore error getting blockers, falling back to localStorage:", e);
-      return MOCK_DB.getBlockers().sort((a, b) => 
-        new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-      );
-    }
+    const q = query(collection(db, "blockers"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Blocker));
   }
   return MOCK_DB.getBlockers().sort((a, b) => 
     new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
@@ -353,15 +312,11 @@ export async function createBlocker(blocker: Omit<Blocker, 'id' | 'createdAt'>):
   };
 
   if (isFirebaseConnected && db) {
-    try {
-      const docRef = await addDoc(collection(db, "blockers"), {
-        ...newBlocker,
-        createdAt: newBlocker.createdAt
-      });
-      return { ...newBlocker, id: docRef.id };
-    } catch (e) {
-      console.warn("Firestore error creating blocker, falling back to localStorage:", e);
-    }
+    const docRef = await addDoc(collection(db, "blockers"), {
+      ...newBlocker,
+      createdAt: newBlocker.createdAt
+    });
+    return { ...newBlocker, id: docRef.id };
   }
 
   const blockers = MOCK_DB.getBlockers();
@@ -372,12 +327,8 @@ export async function createBlocker(blocker: Omit<Blocker, 'id' | 'createdAt'>):
 
 export async function deleteBlocker(id: string): Promise<void> {
   if (isFirebaseConnected && db) {
-    try {
-      await deleteDoc(doc(db, "blockers", id));
-      return;
-    } catch (e) {
-      console.warn("Firestore error deleting blocker, falling back to localStorage:", e);
-    }
+    await deleteDoc(doc(db, "blockers", id));
+    return;
   }
 
   const blockers = MOCK_DB.getBlockers();

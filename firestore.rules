@@ -22,7 +22,7 @@ service cloud.firestore {
     // 1. Validate Tasks collection
     match /tasks/{taskId} {
       allow read: if true;
-      allow write: if 
+      allow create, update: if 
         // Ensure required fields exist and have correct types
         request.resource.data.title is string &&
         request.resource.data.title.size() > 0 &&
@@ -36,22 +36,24 @@ service cloud.firestore {
         request.resource.data.priority in ['low', 'medium', 'high'] &&
         // Check array structure for tags
         request.resource.data.tags is list;
+      allow delete: if true;
     }
 
     // 2. Validate Decisions collection
     match /decisions/{decisionId} {
       allow read: if true;
-      allow write: if 
+      allow create, update: if 
         request.resource.data.title is string &&
         request.resource.data.title.size() > 0 &&
         request.resource.data.title.size() < 250 &&
         request.resource.data.details is string;
+      allow delete: if true;
     }
 
     // 3. Validate Blockers collection
     match /blockers/{blockerId} {
       allow read: if true;
-      allow write: if 
+      allow create, update: if 
         request.resource.data.title is string &&
         request.resource.data.title.size() > 0 &&
         request.resource.data.title.size() < 250 &&
@@ -62,19 +64,21 @@ service cloud.firestore {
     // 4. Validate Team Roster collection
     match /team/{memberId} {
       allow read: if true;
-      allow write: if 
+      allow create, update: if 
         request.resource.data.id is string &&
         request.resource.data.name is string &&
         request.resource.data.name.size() > 0 &&
         request.resource.data.name.size() < 50;
+      allow delete: if true;
     }
 
     // 5. Validate Active Speaker state
     match /current_user/{activeState} {
       allow read: if true;
-      allow write: if 
+      allow create, update: if 
         request.resource.data.id is string &&
         request.resource.data.name is string;
+      allow delete: if true;
     }
   }
 }
