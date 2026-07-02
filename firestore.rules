@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // OPTION 1: USER-AUTHENTICATED ACCESS (Recommended for Production)
+    // Only logged-in users can read or write documents.
+    // Use this rule if you implement Firebase Authentication.
+    // ==========================================
+    /*
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    */
+
+    // ==========================================
+    // OPTION 2: SCHEMA-VALIDATED ACCESS (Safe for Sandbox/Public Prototypes)
+    // Allows access but strictly validates incoming fields, data types, 
+    // and enums to protect data integrity and prevent malicious writes.
+    // ==========================================
+    
+    // 1. Validate Tasks collection
+    match /tasks/{taskId} {
+      allow read: if true;
+      allow write: if 
+        // Ensure required fields exist and have correct types
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.title.size() < 150 &&
+        request.resource.data.description is string &&
+        request.resource.data.assigneeId is string &&
+        request.resource.data.assigneeName is string &&
+        request.resource.data.createdBy is string &&
+        // Validate enum states
+        request.resource.data.status in ['todo', 'in-progress', 'done'] &&
+        request.resource.data.priority in ['low', 'medium', 'high'] &&
+        // Check array structure for tags
+        request.resource.data.tags is list;
+    }
+
+    // 2. Validate Decisions collection
+    match /decisions/{decisionId} {
+      allow read: if true;
+      allow write: if 
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.title.size() < 250 &&
+        request.resource.data.details is string;
+    }
+
+    // 3. Validate Blockers collection
+    match /blockers/{blockerId} {
+      allow read: if true;
+      allow write: if 
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.title.size() < 250 &&
+        request.resource.data.details is string;
+      allow delete: if true;
+    }
+
+    // 4. Validate Team Roster collection
+    match /team/{memberId} {
+      allow read: if true;
+      allow write: if 
+        request.resource.data.id is string &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.name.size() < 50;
+    }
+
+    // 5. Validate Active Speaker state
+    match /current_user/{activeState} {
+      allow read: if true;
+      allow write: if 
+        request.resource.data.id is string &&
+        request.resource.data.name is string;
+    }
+  }
+}
