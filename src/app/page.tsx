@@ -20,7 +20,8 @@ import {
   Cpu, 
   Monitor, 
   Smartphone, 
-  PlusCircle
+  PlusCircle,
+  MessageSquare
 } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -115,7 +116,8 @@ export default function App() {
         body: JSON.stringify({
           transcript: textToExtract,
           teamMembers: team,
-          currentUser: currentUser
+          currentUser: currentUser,
+          pendingSuggestions: suggestions
         })
       });
       
@@ -130,7 +132,7 @@ export default function App() {
     } finally {
       setIsPendingAI(false);
     }
-  }, [team, currentUser]);
+  }, [team, currentUser, suggestions]);
 
   const handleTextareaChange = (val: string, selectionStart: number) => {
     setTranscript(val);
@@ -167,6 +169,8 @@ export default function App() {
     // Re-trigger extraction
     performExtraction(newText);
   };
+
+
 
   useEffect(() => {
     if (typingTimerRef.current) {
@@ -564,6 +568,16 @@ export default function App() {
                     </div>
                   ) : (
                     <>
+                      {suggestions.clarification && (
+                        <div className="p-2.5 border border-[#06b6d4]/40 bg-[#06b6d4]/5 text-[#06b6d4] text-[10px] font-mono flex items-start gap-2.5 animate-pulse-soft">
+                          <MessageSquare className="size-4 mt-0.5 shrink-0 text-[#06b6d4]" />
+                          <div className="flex-1 min-w-0">
+                            <span className="font-bold uppercase text-[8px] block mb-0.5 text-[#06b6d4]/70">// CLARIFICATION_QUERY:</span>
+                            <span className="text-[#cbd5e1]">"{suggestions.clarification}"</span>
+                          </div>
+                        </div>
+                      )}
+
                       {suggestions.tasks.map((t, idx) => (
                         <div key={`live-task-${idx}`} className="p-1.5 border border-[#1f2937] bg-[#0b0f19] flex justify-between items-center animate-slide-up">
                           <span className="text-[#cbd5e1] truncate flex-1 pr-2">

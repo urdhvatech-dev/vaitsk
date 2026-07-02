@@ -37,13 +37,70 @@ export interface ExtractionResult {
   decisions: Omit<Decision, 'id'>[];
   blockers: Omit<Blocker, 'id'>[];
   summary: string;
+  clarification?: string | null;
 }
 
 export function extractFromTranscriptLocal(
   transcript: string,
   teamMembers: TeamMember[],
-  currentUser: TeamMember
+  currentUser: TeamMember,
+  pendingSuggestions?: ExtractionResult | null
 ): ExtractionResult {
+  // If we have pending suggestions and the user is responding to a clarification query
+  if (pendingSuggestions && pendingSuggestions.tasks && pendingSuggestions.tasks.length > 0) {
+    const updatedTasks = JSON.parse(JSON.stringify(pendingSuggestions.tasks));
+    const firstTask = updatedTasks[0];
+    
+    let foundAssignee = false;
+    for (const member of teamMembers) {
+      const nameRegex = new RegExp(`@?${member.name}\\b`, 'i');
+      if (nameRegex.test(transcript)) {
+        firstTask.assigneeId = member.id;
+        firstTask.assigneeName = member.name;
+        foundAssignee = true;
+        break;
+      }
+    }
+
+    let foundDueDate = false;
+    const dateMatches = [
+      { key: "today", pattern: /\btoday\b/i },
+      { key: "tomorrow", pattern: /\btomorrow\b/i },
+      { key: "EOD", pattern: /\beod\b/i },
+      { key: "Friday", pattern: /\bfriday\b/i },
+      { key: "Monday", pattern: /\bmonday\b/i }
+    ];
+    for (const item of dateMatches) {
+      if (item.pattern.test(transcript)) {
+        firstTask.dueDate = item.key;
+        foundDueDate = true;
+        break;
+      }
+    }
+
+    if (foundAssignee || foundDueDate) {
+      // Regenerate clarification
+      let newClarification: string | null = null;
+      const isDefaultAssignee = firstTask.assigneeId === currentUser.id && !transcript.toLowerCase().includes(currentUser.name.toLowerCase());
+      
+      if (isDefaultAssignee && !firstTask.dueDate) {
+        newClarification = `Who should do "${firstTask.title}", and when is it due?`;
+      } else if (isDefaultAssignee) {
+        newClarification = `Who should be assigned to "${firstTask.title}"?`;
+      } else if (!firstTask.dueDate) {
+        newClarification = `When is the task "${firstTask.title}" due?`;
+      }
+      
+      return {
+        tasks: updatedTasks,
+        decisions: pendingSuggestions.decisions || [],
+        blockers: pendingSuggestions.blockers || [],
+        summary: pendingSuggestions.summary || `Updated task: ${firstTask.title}`,
+        clarification: newClarification
+      };
+    }
+  }
+
   const result: ExtractionResult = {
     tasks: [],
     decisions: [],
@@ -153,37 +210,49 @@ export function extractFromTranscriptLocal(
     }
 
     if (isTask && title) {
-      // Priority
+      // Intelligent Priority Inference
       let priority: 'low' | 'medium' | 'high' = 'medium';
-      if (lowerClause.includes("urgent") || lowerClause.includes("critical") || lowerClause.includes("asap") || lowerClause.includes("immediately")) {
+      const urgentWords = ["urgent", "critical", "asap", "immediately", "important", "high priority", "vital", "must do", "critical path"];
+      const lowWords = ["whenever possible", "later", "backlog", "low priority", "no rush", "some day"];
+
+      if (urgentWords.some(w => lowerClause.includes(w))) {
         priority = 'high';
-      } else if (lowerClause.includes("whenever possible") || lowerClause.includes("later") || lowerClause.includes("backlog")) {
+      } else if (lowWords.some(w => lowerClause.includes(w))) {
         priority = 'low';
       }
 
-      // Due date extraction
+      // Granular Due date extraction
       let dueDate: string | null = null;
-      const dateMatches = [
-        { key: "today", pattern: /\btoday\b/i },
-        { key: "tomorrow", pattern: /\btomorrow\b/i },
-        { key: "next Monday", pattern: /\bnext monday\b/i },
-        { key: "Friday", pattern: /\bfriday\b/i },
-        { key: "end of week", pattern: /\bend of (the )?week\b/i },
-        { key: "Monday", pattern: /\bmonday\b/i },
-        { key: "Tuesday", pattern: /\btuesday\b/i },
-        { key: "Wednesday", pattern: /\bwednesday\b/i },
-        { key: "Thursday", pattern: /\bthursday\b/i },
-        { key: "Saturday", pattern: /\bsaturday\b/i },
-        { key: "Sunday", pattern: /\bsunday\b/i }
-      ];
+      
+      const complexDateRegex = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(morning|afternoon|evening|night|at\s+\d{1,2}(?::\d{2})?\s*(?:pm|am))\b/i;
+      const eodRegex = /\b(eod|end of (the )?day)\b/i;
+      const specificTimeRegex = /\b(at\s+\d{1,2}(?::\d{2})?\s*(?:pm|am))\b/i;
+      const simpleDateRegex = /\b(today|tomorrow|next monday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|end of (the )?week)\b/i;
 
-      for (const item of dateMatches) {
-        if (item.pattern.test(lowerClause)) {
-          dueDate = item.key;
-          // Strip date from title
-          title = title.replace(new RegExp(`\\bby ${item.key}\\b|\\bon ${item.key}\\b|\\b${item.key}\\b`, 'gi'), "").trim();
-          break;
-        }
+      const complexMatch = lowerClause.match(complexDateRegex);
+      const eodMatch = lowerClause.match(eodRegex);
+      const specificTimeMatch = lowerClause.match(specificTimeRegex);
+      const simpleMatch = lowerClause.match(simpleDateRegex);
+
+      if (complexMatch) {
+        dueDate = complexMatch[0];
+      } else if (eodMatch) {
+        dueDate = "EOD";
+      } else if (specificTimeMatch && simpleMatch) {
+        dueDate = `${simpleMatch[0]} ${specificTimeMatch[0]}`;
+      } else if (simpleMatch) {
+        dueDate = simpleMatch[0];
+      } else if (specificTimeMatch) {
+        dueDate = `today ${specificTimeMatch[0]}`;
+      }
+
+      if (dueDate) {
+        // Strip due date from title
+        const stripPattern = new RegExp(`\\bby\\s+${dueDate}\\b|\\bon\\s+${dueDate}\\b|\\b${dueDate}\\b`, 'gi');
+        title = title.replace(stripPattern, "").trim();
+        
+        // Strip residual trailing prepositions
+        title = title.replace(/\b(by|on|at|for)\b\s*$/i, "").trim();
       }
 
       // Tags auto-detection
@@ -236,6 +305,23 @@ export function extractFromTranscriptLocal(
       tags: []
     });
   }
+
+  // Generate local clarification if info is missing
+  let clarification: string | null = null;
+  if (result.tasks.length > 0) {
+    const firstTask = result.tasks[0];
+    const isDefaultAssignee = firstTask.assigneeId === currentUser.id && !transcript.toLowerCase().includes(currentUser.name.toLowerCase());
+    
+    if (isDefaultAssignee && !firstTask.dueDate) {
+      clarification = `Who should do "${firstTask.title}", and when is it due?`;
+    } else if (isDefaultAssignee) {
+      clarification = `Who should be assigned to "${firstTask.title}"?`;
+    } else if (!firstTask.dueDate) {
+      clarification = `When is the task "${firstTask.title}" due?`;
+    }
+  }
+  
+  result.clarification = clarification;
 
   return result;
 }
