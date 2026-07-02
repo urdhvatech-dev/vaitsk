@@ -30,7 +30,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Task, Decision, Blocker, TeamMember, ExtractionResult } from "@/lib/localExtractor"
+import { Task, Decision, Blocker, TeamMember, ExtractionResult, extractFromTranscriptLocal } from "@/lib/localExtractor"
+import { GoogleGenerativeAI } from "@google/generative-ai"
 import { 
   getTasks, 
   createTask, 
@@ -109,6 +110,9 @@ export default function App() {
     }
     
     setIsPendingAI(true);
+    let success = false;
+
+    // 1. Try server-side API endpoint first
     try {
       const response = await fetch("/api/extract", {
         method: "POST",
@@ -124,14 +128,147 @@ export default function App() {
       if (response.ok) {
         const result = await response.json();
         setSuggestions(result);
+        success = true;
       } else {
-        console.error("Extraction failed:", response.status);
+        console.warn(`Server extraction failed with status ${response.status}. Trying client-side fallback...`);
       }
     } catch (e) {
-      console.error("Extraction error:", e);
-    } finally {
-      setIsPendingAI(false);
+      console.warn("Server API endpoint unreachable. Trying client-side fallback...", e);
     }
+
+    // 2. Fallback to direct client-side Gemini SDK call if API route is unavailable (e.g. static hosting)
+    if (!success) {
+      const clientApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      if (clientApiKey) {
+        try {
+          const genAI = new GoogleGenerativeAI(clientApiKey);
+          const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            generationConfig: {
+              responseMimeType: "application/json"
+            }
+          });
+
+          let conversationContextPrompt = "";
+          if (suggestions && (suggestions.tasks?.length > 0 || suggestions.decisions?.length > 0 || suggestions.blockers?.length > 0)) {
+            conversationContextPrompt = `
+CONVERSATIONAL WORKFLOW CONTEXT:
+The user previously entered a command, and we generated the following draft suggestions (which are NOT committed to the database yet):
+${JSON.stringify(suggestions, null, 2)}
+
+In the previous step, we asked the user this clarification question:
+"${suggestions.clarification || "N/A"}"
+
+INSTRUCTIONS FOR THIS RESPONSE:
+1. Determine if the user's new input ("${textToExtract}") is answering the clarification question or refining/correcting the previous draft suggestions.
+2. If it IS updating/answering:
+   - Merge the updates into the previous suggestions. For example, if they specify an assignee name (like 'Rahul' or '@Rahul') or a deadline (like 'tomorrow'), update those fields in the existing tasks list.
+   - Do NOT create duplicate tasks. Return the updated tasks list.
+   - Clear the clarification field (set it to null) once all necessary information is obtained.
+3. If the user's new reply is NOT updating the previous draft (e.g. they typed/said a completely unrelated command or requested a new task):
+   - Discard the previous suggestions.
+   - Extract new tasks, decisions, or blockers solely from the new transcript "${textToExtract}".
+`;
+          }
+
+          const prompt = `
+You are an AI task extraction and project management assistant.
+Your purpose is to convert voice transcripts, meeting conversations, and natural language commands into structured project data.
+${conversationContextPrompt}
+
+Available Team Members:
+${JSON.stringify(team, null, 2)}
+
+Current User:
+${JSON.stringify(currentUser, null, 2)}
+
+Current Local Time (reference for relative dates):
+${new Date().toISOString()}
+
+Voice Command / Transcript Input:
+"${textToExtract}"
+
+Task Extraction Rules:
+Create a task when someone:
+- agrees to do something
+- is assigned work
+- volunteers for work
+- requests follow-up
+- commits to a deadline
+- asks someone else to complete something
+
+Extract assigneeId and assigneeName matching from the list of available team members. Check for explicit @mentions (e.g., '@Rahul' or '@Sarah'). If a name is prefixed with '@', explicitly assign the task to that user and STRIP the '@name' token from the task title. If no owner is mentioned (either normally or with @), assign the task to the speaker (current user).
+Convert relative dates (today, tomorrow, next Monday, etc.) into structured text values. Extract and preserve granular deadlines and times if mentioned (e.g., 'tomorrow evening', 'EOD', 'Friday at 12:30 pm', 'today by 5:00 pm', 'next Monday afternoon'). If no date exists, set dueDate to null. Strip these deadline phrases from the task title.
+Detect finalized decisions separately from tasks (e.g. "We'll launch on Friday", "Homepage design version B is approved").
+Detect blockers separately from tasks (anything preventing progress, e.g. "Waiting for client approval", "Need API credentials").
+Intelligently infer priority:
+- "high": if the speaker states it's important, urgent, critical, critical path, vital, needed immediately, asap, or shows high emotion/emphasis about it.
+- "low": if they mention there's no rush, it's low priority, backlog, later, whenever possible.
+- "medium": normal/routine tasks.
+Auto-detect tags (e.g. dashboard -> ui, api -> backend, deployment -> devops, invoice -> finance, marketing campaign -> marketing).
+
+You MUST return a JSON object with this exact schema (no markdown, no explanations, only raw JSON):
+{
+  "tasks": [
+    {
+      "title": "Clean, action-oriented task title (e.g., 'Finish login API')",
+      "description": "Short explanation or context from transcript",
+      "assigneeId": "ID of assignee matching team members list (e.g., 'u2')",
+      "assigneeName": "Name of assignee matching team members list (e.g., 'Rahul')",
+      "priority": "low|medium|high",
+      "dueDate": "tomorrow|Friday|etc. or null",
+      "tags": ["tag1", "tag2"]
+    }
+  ],
+  "decisions": [
+    {
+      "title": "Decided topic/outcome",
+      "details": "Details about the decision"
+    }
+  ],
+  "blockers": [
+    {
+      "title": "Blocker description",
+      "details": "Details about what is blocking"
+    }
+  ],
+  "summary": "A 1-sentence summary of the transcript",
+  "clarification": "If any critical task metadata is missing (like who is assigned or when it's due), write a short conversational question (15 words max) to ask the speaker. Otherwise, return null."
+}
+`;
+
+          const result = await model.generateContent(prompt);
+          let text = result.response.text().trim();
+          
+          if (text.startsWith("```json")) {
+            text = text.substring(7);
+          }
+          if (text.startsWith("```")) {
+            text = text.substring(3);
+          }
+          if (text.endsWith("```")) {
+            text = text.substring(0, text.length - 3);
+          }
+          text = text.trim();
+
+          const parsedData = JSON.parse(text);
+          setSuggestions(parsedData);
+          success = true;
+        } catch (geminiError) {
+          console.error("Direct client-side Gemini extraction failed:", geminiError);
+        }
+      }
+    }
+
+    // 3. Ultimate local rule-based fallback if Gemini (API and client SDK) are both unavailable
+    if (!success) {
+      console.log("Both Gemini endpoints failed, falling back to local rule-based extractor");
+      const fallbackUser = currentUser || team[0] || { id: "guest", name: "Guest", avatar: "👤" };
+      const localResult = extractFromTranscriptLocal(textToExtract, team, fallbackUser, suggestions);
+      setSuggestions(localResult);
+    }
+
+    setIsPendingAI(false);
   }, [team, currentUser, suggestions]);
 
   const handleTextareaChange = (val: string, selectionStart: number) => {

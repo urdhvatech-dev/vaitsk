@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
   let teamMembers = [];
   let currentUser = null;
   let pendingSuggestions = null;
+  let fallbackUser: any = { id: "guest", name: "Guest", avatar: "👤" };
 
   try {
     const body = await request.json();
@@ -23,11 +24,12 @@ export async function POST(request: NextRequest) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    fallbackUser = currentUser || teamMembers[0] || { id: "guest", name: "Guest", avatar: "👤" };
 
     if (!apiKey) {
       // Graceful fallback to local extraction
       console.log("No GEMINI_API_KEY found, falling back to local rule-based extractor");
-      const localResult = extractFromTranscriptLocal(transcript, teamMembers, currentUser, pendingSuggestions);
+      const localResult = extractFromTranscriptLocal(transcript, teamMembers, fallbackUser, pendingSuggestions);
       return Response.json(localResult);
     }
 
@@ -148,13 +150,13 @@ You MUST return a JSON object with this exact schema (no markdown, no explanatio
       return Response.json(parsedData);
     } catch (parseError) {
       console.error("Failed to parse Gemini JSON response, falling back to local extractor. Response was:", text);
-      const localResult = extractFromTranscriptLocal(transcript, teamMembers, currentUser, pendingSuggestions);
+      const localResult = extractFromTranscriptLocal(transcript, teamMembers, fallbackUser, pendingSuggestions);
       return Response.json(localResult);
     }
   } catch (error) {
     console.error("Gemini API error, falling back to local extractor:", error);
     try {
-      const localResult = extractFromTranscriptLocal(transcript, teamMembers, currentUser, pendingSuggestions);
+      const localResult = extractFromTranscriptLocal(transcript, teamMembers, fallbackUser, pendingSuggestions);
       return Response.json(localResult);
     } catch (fallbackError) {
       return Response.json({ error: "Failed to process request" }, { status: 500 });
