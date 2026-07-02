@@ -100,15 +100,27 @@ export function extractFromTranscriptLocal(
     // 3. Detect Tasks
     // Look for assignees
     let assignee: TeamMember | null = null;
-    let textToParse = clause;
+    let cleanClause = clause;
 
-    // Check if any team member name is mentioned
+    // Check if any team member name is mentioned with '@' (e.g. @Sarah or @sarah)
     for (const member of teamMembers) {
-      const nameRegex = new RegExp(`\\b${member.name}\\b`, 'i');
-      if (nameRegex.test(clause)) {
+      const mentionRegex = new RegExp(`@${member.name}\\b`, 'i');
+      if (mentionRegex.test(clause)) {
         assignee = member;
-        // Clean the name out of the title optionally, or keep context
+        // Strip the @mention from the clause text
+        cleanClause = cleanClause.replace(mentionRegex, "").trim();
         break;
+      }
+    }
+
+    // If no @mention is found, check for normal name mentions
+    if (!assignee) {
+      for (const member of teamMembers) {
+        const nameRegex = new RegExp(`\\b${member.name}\\b`, 'i');
+        if (nameRegex.test(clause)) {
+          assignee = member;
+          break;
+        }
       }
     }
 
@@ -126,8 +138,8 @@ export function extractFromTranscriptLocal(
     if (verbRegex.test(lowerClause) || lowerClause.includes("will") || lowerClause.includes("please") || assignee) {
       isTask = true;
       
-      // Clean up title
-      title = clause;
+      // Clean up title (start with the clause stripped of @mentions)
+      title = cleanClause;
       
       // Strip helper words
       title = title.replace(/^(please|will|can you|could you|i will|let's|need to)\b/i, "").trim();
@@ -135,7 +147,8 @@ export function extractFromTranscriptLocal(
       // Strip assignee name if it starts with it
       if (assignee) {
         const cleanNameRegex = new RegExp(`^${assignee.name}\\b\\s*(will|please|to)?`, 'i');
-        title = title.replace(cleanNameRegex, "").trim();
+        const cleanMentionRegex = new RegExp(`^@${assignee.name}\\b\\s*(will|please|to)?`, 'i');
+        title = title.replace(cleanNameRegex, "").replace(cleanMentionRegex, "").trim();
       }
     }
 

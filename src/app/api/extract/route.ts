@@ -63,7 +63,7 @@ Create a task when someone:
 - commits to a deadline
 - asks someone else to complete something
 
-Extract assigneeId and assigneeName matching from the list of available team members. If no owner is explicitly mentioned, assign the task to the speaker (current user).
+Extract assigneeId and assigneeName matching from the list of available team members. Check for explicit @mentions (e.g., '@Rahul' or '@Sarah'). If a name is prefixed with '@', explicitly assign the task to that user and STRIP the '@name' token from the task title. If no owner is mentioned (either normally or with @), assign the task to the speaker (current user).
 Convert relative dates (today, tomorrow, next Monday, etc.) into structured text values (e.g. "tomorrow"). If no date exists, set dueDate to null.
 Detect finalized decisions separately from tasks (e.g. "We'll launch on Friday", "Homepage design version B is approved").
 Detect blockers separately from tasks (anything preventing progress, e.g. "Waiting for client approval", "Need API credentials").

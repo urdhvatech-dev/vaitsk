@@ -66,6 +66,10 @@ export default function App() {
   
   const [suggestions, setSuggestions] = useState<ExtractionResult | null>(null)
   const [mounted, setMounted] = useState(false)
+
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false)
+  const [mentionSearchText, setMentionSearchText] = useState("")
+  const [mentionCursorPos, setMentionCursorPos] = useState(0)
   
   const recognitionRef = useRef<any>(null)
   const typingTimerRef = useRef<any>(null)
@@ -127,6 +131,42 @@ export default function App() {
       setIsPendingAI(false);
     }
   }, [team, currentUser]);
+
+  const handleTextareaChange = (val: string, selectionStart: number) => {
+    setTranscript(val);
+    
+    // Find if the user is typing a mention
+    const textBeforeCursor = val.slice(0, selectionStart);
+    const lastAtOffset = textBeforeCursor.lastIndexOf("@");
+    
+    if (lastAtOffset !== -1) {
+      // Check if there is space before the '@' (or it is at the start) and no space after it
+      const textAfterAt = textBeforeCursor.slice(lastAtOffset + 1);
+      const isStartOrHasSpaceBefore = lastAtOffset === 0 || /\s/.test(textBeforeCursor[lastAtOffset - 1]);
+      const hasNoSpaceAfter = !/\s/.test(textAfterAt);
+      
+      if (isStartOrHasSpaceBefore && hasNoSpaceAfter) {
+        setShowMentionSuggestions(true);
+        setMentionSearchText(textAfterAt.toLowerCase());
+        setMentionCursorPos(lastAtOffset);
+        return;
+      }
+    }
+    
+    setShowMentionSuggestions(false);
+  };
+
+  const insertMention = (memberName: string) => {
+    // Insert mention at the cursor position
+    const beforeMention = transcript.slice(0, mentionCursorPos);
+    const afterMention = transcript.slice(mentionCursorPos + mentionSearchText.length + 1); // +1 for the '@'
+    const newText = `${beforeMention}@${memberName} ${afterMention}`;
+    setTranscript(newText);
+    setShowMentionSuggestions(false);
+    
+    // Re-trigger extraction
+    performExtraction(newText);
+  };
 
   useEffect(() => {
     if (typingTimerRef.current) {
@@ -472,14 +512,42 @@ export default function App() {
               </div>
 
               {/* Textarea buffer editor for modifying transcript manually */}
-              <div className="space-y-1">
+              <div className="space-y-1 relative">
                 <span className="text-[9px] text-[#4b5563]">// EDIT_BUFFER_MANUALLY</span>
                 <Textarea
-                  placeholder="Type/Edit transcript manually to re-trigger live AI preview..."
+                  placeholder="Type/Edit transcript manually... Use @ to assign nodes"
                   value={transcript}
-                  onChange={(e) => setTranscript(e.target.value)}
+                  onChange={(e) => handleTextareaChange(e.target.value, e.target.selectionStart)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setShowMentionSuggestions(false);
+                  }}
+                  onClick={(e: any) => {
+                    handleTextareaChange(e.target.value, e.target.selectionStart);
+                  }}
                   className="min-h-[60px] bg-[#030712] border-[#1f2937] text-[#cbd5e1] text-[11px] resize-none focus:border-[#06b6d4]/50 rounded-none font-mono"
                 />
+
+                {/* @ mention Autocomplete Overlay */}
+                {showMentionSuggestions && (
+                  <div className="absolute left-0 bottom-full mb-1 w-48 bg-[#0b0f19] border border-[#06b6d4]/30 shadow-2xl p-1 z-50 flex flex-col max-h-[150px] overflow-y-auto font-mono animate-slide-up">
+                    <div className="px-2 py-1 text-[8px] text-[#4b5563] border-b border-[#1f2937] uppercase select-none">// MENTIONS ASSIGN:</div>
+                    {team
+                      .filter(m => m.name.toLowerCase().includes(mentionSearchText))
+                      .map(m => (
+                        <button
+                          key={m.id}
+                          onClick={() => insertMention(m.name)}
+                          className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-[#06b6d4]/10 hover:text-[#06b6d4] flex items-center gap-1.5 text-[#cbd5e1] transition-all border-b border-[#1f2937]/30 last:border-b-0"
+                        >
+                          <span className="text-[10px]">{m.avatar}</span>
+                          <span className="font-bold">@{m.name}</span>
+                        </button>
+                      ))}
+                    {team.filter(m => m.name.toLowerCase().includes(mentionSearchText)).length === 0 && (
+                      <span className="px-2 py-1.5 text-[9px] text-[#4b5563] italic select-none">No members found</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* LIVE AI PREVIEW EXTRACTION LOGS */}
@@ -633,8 +701,8 @@ export default function App() {
                                   </button>
 
                                   <div className="flex-1 min-w-0">
-                                    <h5 className={`text-[11px] font-bold text-[#cbd5e1] truncate ${
-                                      task.status === "done" ? "line-through text-[#4b5563]" : ""
+                                    <h5 className={`text-[11px] font-bold text-[#cbd5e1] truncate task-title-transition relative inline-block ${
+                                      task.status === "done" ? "task-title-done" : ""
                                     }`}>
                                       {task.title}
                                     </h5>
@@ -642,17 +710,21 @@ export default function App() {
                                     {/* Task settings indicators */}
                                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[8px] text-[#6b7280]">
                                       {task.dueDate && (
-                                        <span className="text-[#10b981] font-semibold">
+                                        <span className="text-[#10b981] border border-[#10b981]/20 bg-[#10b981]/5 px-1 py-0.2 rounded-[2px] font-semibold uppercase">
                                           [due:{task.dueDate.toLowerCase()}]
                                         </span>
                                       )}
                                       <span className={
-                                        task.priority === 'high' ? "text-[#ef4444]" : "text-[#06b6d4]"
+                                        task.priority === 'high' 
+                                          ? "text-[#ef4444] border border-[#ef4444]/20 bg-[#ef4444]/5 px-1 py-0.2 rounded-[2px] font-semibold uppercase" 
+                                          : task.priority === 'low'
+                                            ? "text-[#6b7280] border border-[#6b7280]/20 bg-[#6b7280]/5 px-1 py-0.2 rounded-[2px] font-semibold uppercase"
+                                            : "text-[#06b6d4] border border-[#06b6d4]/20 bg-[#06b6d4]/5 px-1 py-0.2 rounded-[2px] font-semibold uppercase"
                                       }>
                                         [{task.priority}]
                                       </span>
                                       {task.tags.map(tag => (
-                                        <span key={tag} className="text-[#818cf8]">#{tag}</span>
+                                        <span key={tag} className="text-[#818cf8] border border-[#818cf8]/20 bg-[#818cf8]/5 px-1 py-0.2 rounded-[2px] font-semibold uppercase">[tag:{tag}]</span>
                                       ))}
                                     </div>
                                   </div>

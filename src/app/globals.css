@@ -185,3 +185,31 @@
   border-color: rgba(6, 182, 212, 0.5);
   box-shadow: 0 0 10px rgba(6, 182, 212, 0.15);
 }
+
+.task-title-transition {
+  transition: color 0.3s ease;
+}
+
+.task-title-done {
+  color: #4b5563 !important;
+  text-decoration: none !important;
+  position: relative;
+}
+
+.task-title-done::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 1px;
+  background-color: #06b6d4;
+  transform: scaleX(1);
+  transform-origin: left;
+  animation: strike-glide 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes strike-glide {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
