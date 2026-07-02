@@ -194,7 +194,7 @@ export async function getTasks(): Promise<Task[]> {
   if (isFirebaseConnected && db) {
     const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
+    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Task));
   }
   return MOCK_DB.getTasks().sort((a, b) => 
     new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
@@ -253,7 +253,7 @@ export async function getDecisions(): Promise<Decision[]> {
   if (isFirebaseConnected && db) {
     const q = query(collection(db, "decisions"), orderBy("createdAt", "desc"));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Decision));
+    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Decision));
   }
   return MOCK_DB.getDecisions().sort((a, b) => 
     new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
@@ -297,7 +297,7 @@ export async function getBlockers(): Promise<Blocker[]> {
   if (isFirebaseConnected && db) {
     const q = query(collection(db, "blockers"), orderBy("createdAt", "desc"));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Blocker));
+    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Blocker));
   }
   return MOCK_DB.getBlockers().sort((a, b) => 
     new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
